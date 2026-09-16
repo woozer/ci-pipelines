@@ -1,0 +1,10 @@
+# Werkafspraken
+
+- Gebruik bij voorkeur GitLabs ingebouwde mogelijkheden voor aansturing, inputs, afhankelijkheden en artifacts. Voeg extra stappen toe als gewone jobs met `needs`. Bouw geen eigen vervolg-/callbackprotocol of pipeline-engine als GitLab het benodigde gedrag al ondersteunt.
+- Controleer bij voorstellen en wijzigingen of de aanpak aansluit op een toepasselijke standaard of gangbare werkwijze, en of ondersteunde platformfuncties of onderhouden componenten de behoefte al afdekken. Raadpleeg actuele primaire documentatie wanneer verificatie nodig is.
+- Maak onderscheid tussen formele standaarden, ondersteunde platformfuncties, gangbare werkwijzen, organisatiebeleid en maatwerk. Beschrijf een voorkeur of eigen implementatie niet als industriestandaard.
+- Leg afwijkende keuzes uit: wat de standaard of gebruikelijke aanpak is, waarom we afwijken en wat dat betekent voor afnemers, onderhoud, compatibiliteit of aantoonbaarheid. Benoem onzekerheden expliciet.
+- Leg belangrijke geaccepteerde afwijkingen en hun redenen vast in de relevante documentatie. Zie [hergebruik en standaarden](https://github.com/woozer/ci-components/blob/main/docs/reuse-and-standards.md). Houd de beoordeling in verhouding tot de wijziging; deze afspraak vereist geen extra toestemming voor al geautoriseerd werk.
+- Schrijf en redigeer onze documentatie in het Nederlands. Controleer zinsbouw, woordkeuze, consistentie en de volgorde van instructies. Houd uitleg voor afnemers beknopt en concreet. Behoud technische namen, variabele- en inputnamen, inputwaarden, shellfuncties, Python-methoden, overige code en configuratie in hun bestaande vorm. Gebruik knopnamen zoals ze in de interface staan. Een documentatiewijziging is geen aanleiding om code of configuratie te vertalen.
+
+- Houd de componentcatalogus klein. Ontwerp één component per herkenbare taak voor de afnemer. Splits alleen op bij aantoonbaar zelfstandig gebruik, verschillende toegangsrechten of verschillende uitvoeringsmomenten. Eén component mag meerdere jobs bevatten; één technische stap vereist niet automatisch een eigen module. Beoordeel bestaande TODO-opsplitsingen opnieuw vóór activering.

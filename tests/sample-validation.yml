@@ -1,0 +1,18 @@
+# Expand the candidate SHA in this project, before creating the sample pipeline.
+spec:
+  inputs:
+    pipeline-ref:
+      default: '$CI_COMMIT_SHA'
+---
+validate-sample:
+  stage: integration
+  needs: [validate-pipelines]
+  inherit:
+    variables: false
+  trigger:
+    project: $CI_SAMPLES_PROJECT
+    branch: main
+    inputs:
+      sample: java-service
+      pipeline_ref: $[[ inputs.pipeline-ref | expand_vars ]]
+    strategy: mirror

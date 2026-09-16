@@ -1,0 +1,19 @@
+# Build/tests start immediately. Choose modes on New pipeline.
+# configure-deploy allows cluster/Helm choices before deployment; defaults after 10s.
+# All job order and release policy live in the java-service catalog component.
+# Keep the shared form and implementation pinned to the same pipeline release.
+spec:
+  include:
+    - project: root/ci-pipelines
+      ref: '1.0.0'
+      file: /config/pipeline-inputs.yml
+---
+include:
+  - component: $CI_SERVER_FQDN/root/ci-pipelines/java-service@1.0.0
+    inputs:
+      maven-project: hello-app
+      release-line: "0.1"
+      ui-directory: ui
+      cluster: $[[ inputs.cluster ]]
+      user-config: $[[ inputs.user_config ]]
+      pipeline-mode: $[[ inputs.pipeline_mode ]]

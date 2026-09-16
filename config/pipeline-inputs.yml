@@ -1,0 +1,17 @@
+# Shared New pipeline form. Automatic pipelines use these defaults.
+inputs:
+  cluster:
+    description: 'Initial deployment cluster; can be changed at configure-deploy'
+    type: string
+    default: local
+    options: [local]
+  user_config:
+    description: 'Initial Helm values profile; can be changed at configure-deploy'
+    type: string
+    default: default
+    options: [default, two-replicas]
+  pipeline_mode:
+    description: 'Choose before starting: validate, publish artifacts, or also deploy and test'
+    type: string
+    default: deploy
+    options: [validate, publish, deploy]

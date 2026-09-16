@@ -1,0 +1,262 @@
+# Internal jobs shared by ordinary CI and releases; callers own workflow and version.
+spec:
+  inputs:
+    components-project:
+      default: root/ci-components
+    maven-project:
+      description: 'Deployable Maven module containing Jib'
+    application:
+      default: '$CI_PROJECT_NAME'
+    chart:
+      default: 'helm/$CI_PROJECT_NAME'
+    ui-directory:
+      description: 'Optional Angular/npm deployable; empty keeps a backend-only pipeline'
+      default: ''
+    ui-application:
+      default: '$CI_PROJECT_NAME-ui'
+    ui-chart:
+      default: 'helm/$CI_PROJECT_NAME-ui'
+    buildkit-runner-tags:
+      description: 'Runner tags for rootless BuildKit'
+      type: array
+      default: [local-buildkit]
+    registry-plain-http:
+      description: 'Local demo only; set false for an HTTPS organization registry'
+      type: boolean
+      default: true
+    pipeline-mode:
+      description: 'Choose before pipeline creation; runtime choices affect deployment only'
+      default: publish
+      options: [validate, publish, deploy]
+---
+include:
+  - project: '$[[ inputs.components-project ]]'
+    ref: '1.2.0'
+    file: [/config/organization.yml, /shared/helm.yml]
+  - local: /shared/java-service.yml
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/maven-build@1.2.0
+    inputs:
+      job-name: build
+      stage: build
+      image: $MAVEN_BUILD_IMAGE
+      maven-executable: mvn
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+    inputs:
+      job-name: test
+      stage: test
+      image: $CUCUMBER_TEST_IMAGE
+      maven-executable: mvn
+      target-url-variable: ''
+      tags: 'not @ui and not @ignore'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/npm-build@1.2.0
+    inputs:
+      job-name: build-ui
+      stage: build
+      image: $NPM_BUILD_IMAGE
+      working-directory: '$[[ inputs.ui-directory ]]'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/npm-test@1.2.0
+    inputs:
+      job-name: test-ui
+      image: $NPM_TEST_IMAGE
+      working-directory: '$[[ inputs.ui-directory ]]'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/sonar@1.2.0
+    inputs:
+      image: $SONAR_IMAGE
+      maven-executable: mvn
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/dependency-check@1.2.0
+    inputs:
+      image: $DEPENDENCY_CHECK_IMAGE
+      maven-executable: mvn
+      nvd-datafeed-url: $NVD_DATAFEED_URL
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/maven-publish@1.2.0
+    inputs:
+      job-name: publish-maven
+      stage: publish
+      image: $MAVEN_PUBLISH_IMAGE
+      maven-executable: mvn
+      project-selector: '$[[ inputs.maven-project ]]'
+      settings-file: $MAVEN_PUBLISH_SETTINGS
+      repository-id: $MAVEN_PUBLISH_SERVER_ID
+      repository-url: $MAVEN_PUBLISH_URL
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/jib-build@1.2.0
+    inputs:
+      job-name: publish-image
+      stage: image
+      image: $JIB_BUILD_IMAGE
+      maven-executable: mvn
+      project-selector: '$[[ inputs.maven-project ]]'
+      settings-file: $ARTIFACTORY_MAVEN_SETTINGS
+      image-repository: '$OCI_REGISTRY/$PUBLISH_REPOSITORY/$[[ inputs.application ]]'
+      image-tag: $APP_VERSION
+      base-image: $JIB_BASE_IMAGE
+      digest-file: '$[[ inputs.maven-project ]]/target/jib-image.digest'
+      allow-insecure-registry: $[[ inputs.registry-plain-http ]]
+      output-prefix: JIB
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-publish@1.2.0
+    inputs:
+      job-name: publish-chart
+      stage: image
+      image: $HELM_PUBLISH_IMAGE
+      chart: '$[[ inputs.chart ]]'
+      chart-name: '$[[ inputs.application ]]'
+      chart-version: $APP_VERSION
+      app-version: $APP_VERSION
+      oci-repository: oci://$OCI_REGISTRY/$PUBLISH_REPOSITORY/charts
+      plain-http: $[[ inputs.registry-plain-http ]]
+      output-prefix: CHART
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/image-build@1.2.0
+    inputs:
+      job-name: publish-ui-image
+      stage: image
+      image: $IMAGE_BUILD_IMAGE
+      working-directory: '$[[ inputs.ui-directory ]]'
+      registry: $OCI_REGISTRY
+      registry-username: $ARTIFACTORY_USERNAME
+      registry-password-file: $ARTIFACTORY_PASSWORD_FILE
+      image-repository: '$OCI_REGISTRY/$PUBLISH_REPOSITORY/$[[ inputs.ui-application ]]'
+      image-tag: $APP_VERSION
+      base-image: $NGINX_BASE_IMAGE
+      plain-http: $[[ inputs.registry-plain-http ]]
+      output-prefix: UI_IMAGE
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-publish@1.2.0
+    inputs:
+      job-name: publish-ui-chart
+      stage: image
+      image: $HELM_PUBLISH_IMAGE
+      chart: '$[[ inputs.ui-chart ]]'
+      chart-name: '$[[ inputs.ui-application ]]'
+      chart-version: $APP_VERSION
+      app-version: $APP_VERSION
+      oci-repository: oci://$OCI_REGISTRY/$PUBLISH_REPOSITORY/charts
+      plain-http: $[[ inputs.registry-plain-http ]]
+      output-prefix: UI_CHART
+
+variables:
+  HELM_REGISTRY_PLAIN_HTTP: '$[[ inputs.registry-plain-http ]]'
+
+.validation:
+  environment:
+    name: $ARTIFACT_ENVIRONMENT
+    action: prepare
+  # Explicit rules also include these jobs in merge request pipelines.
+  rules:
+    - when: on_success
+
+.publish:
+  extends: .validation
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true" && "$[[ inputs.pipeline-mode ]]" != "validate"'
+
+build:
+  extends: [.validation, .maven-cache]
+  dependencies: []
+  interruptible: true
+
+test:
+  extends: [.validation, .maven-cache]
+  interruptible: true
+  needs: [build]
+
+# Community Build analyzes protected main; Dependency-Check also runs in MRs.
+sonar:
+  cache:
+    - !reference [.maven-cache, cache]
+    - key: sonar-$CI_PROJECT_ID
+      paths: [.sonar/cache/]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+  needs:
+    - job: build
+      artifacts: true
+    - job: test
+      artifacts: true
+    - job: test-ui
+      optional: true
+      artifacts: true
+  resource_group: sonar-$CI_PROJECT_ID
+  variables:
+    SONAR_USER_HOME: '$CI_PROJECT_DIR/.sonar'
+    MAVEN_ARGS: '-Drevision=$APP_VERSION -Dsonar.maven.scanAll=true -Dsonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**,.ci-output/**,.m2/**,.cache/**,.sonar/**'
+
+dependency-check:
+  extends: .validation
+  needs:
+    - job: test
+      artifacts: false
+  cache:
+    - !reference [.maven-cache, cache]
+    - key: dependency-check-13
+      paths: [.cache/dependency-check/]
+
+publish-maven:
+  extends: [.publish, .maven-cache]
+  needs:
+    - job: test
+      artifacts: false
+    - job: test-ui
+      optional: true
+      artifacts: false
+    - job: sonar
+      artifacts: false
+    - job: dependency-check
+      artifacts: false
+
+publish-image:
+  extends: [.publish, .maven-cache]
+  needs:
+    - job: publish-maven
+      artifacts: false
+
+publish-chart:
+  extends: .publish
+  needs:
+    - job: publish-maven
+      artifacts: false
+  before_script:
+    - !reference [.helm-login, before_script]
+
+.ui-validation:
+  extends: .validation
+  rules:
+    - if: '"$[[ inputs.ui-directory ]]" == ""'
+      when: never
+    - when: on_success
+  cache:
+    key: npm
+    paths: [.npm/]
+  variables:
+    npm_config_cache: '$CI_PROJECT_DIR/.npm'
+
+.ui-publish:
+  extends: .publish
+  rules:
+    - if: '"$[[ inputs.ui-directory ]]" == ""'
+      when: never
+    - !reference [.publish, rules]
+
+build-ui:
+  extends: .ui-validation
+  dependencies: []
+  interruptible: true
+
+test-ui:
+  extends: .ui-validation
+  dependencies: []
+  interruptible: true
+
+publish-ui-image:
+  extends: .ui-publish
+  tags: $[[ inputs.buildkit-runner-tags ]]
+  needs:
+    - job: build-ui
+      artifacts: true
+    - job: publish-maven
+      artifacts: false
+
+publish-ui-chart:
+  extends: .ui-publish
+  needs:
+    - job: publish-maven
+      artifacts: false
+  before_script:
+    - !reference [.helm-login, before_script]

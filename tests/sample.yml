@@ -1,0 +1,17 @@
+# Execute the public component against the ci-samples application sources.
+spec:
+  inputs:
+    pipeline-ref:
+---
+include:
+  - component: $CI_SERVER_FQDN/root/ci-pipelines/java-service@$[[ inputs.pipeline-ref ]]
+    inputs:
+      maven-project: hello-app
+      ui-directory: ui
+      pipeline-mode: validate
+
+# This fixture also accepts native multi-project validation triggers.
+workflow:
+  name: 'Sample — java-service'
+  rules:
+    - when: always

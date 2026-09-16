@@ -1,0 +1,177 @@
+# Internal deployment and integration tests; also included by the release pipeline.
+spec:
+  inputs:
+    components-project:
+      default: root/ci-components
+    runner-tags:
+      description: 'Runner tags selected by the platform team'
+      type: array
+      default: [local-docker]
+    registry-plain-http:
+      description: 'Local demo only; set false for an HTTPS organization registry'
+      type: boolean
+      default: true
+    kubeconfig-variable:
+      description: 'GitLab file variable; empty uses the agent-provided KUBECONFIG and KUBE_CONTEXT'
+      default: LOCAL_KUBECONFIG
+      regex: '^([A-Z][A-Z0-9_]*)?$'
+    application:
+      default: '$CI_PROJECT_NAME'
+    ui-directory:
+      description: 'Optional Angular/npm deployable; empty keeps a backend-only pipeline'
+      default: ''
+    ui-application:
+      default: '$CI_PROJECT_NAME-ui'
+    namespace:
+      default: '$CI_PROJECT_NAME'
+    deployment-timeout:
+      description: 'Helm readiness timeout per deployable; allow extra job time for rollback'
+      default: 5m
+    environment-directory:
+      default: environment
+    cluster:
+      default: local
+      regex: '^[a-z0-9][a-z0-9-]*$'
+    user-config:
+      default: default
+      regex: '^[a-z0-9][a-z0-9-]*$'
+    version:
+      description: 'Internal: retain the producing pipeline version in child pipelines'
+    publish-needs:
+      description: 'Internal: image/chart producers; deployment children refer to their parent'
+      type: array
+      default:
+        - job: publish-image
+          artifacts: true
+        - job: publish-chart
+          artifacts: true
+    ui-publish-needs:
+      description: 'Internal: UI producers and backend deployment'
+      type: array
+      default:
+        - job: publish-ui-image
+          artifacts: true
+        - job: publish-ui-chart
+          artifacts: true
+        - job: helm-deploy
+          artifacts: false
+---
+include:
+  - project: '$[[ inputs.components-project ]]'
+    ref: '1.2.0'
+    file: [/config/organization.yml, /shared/helm.yml]
+  - local: /shared/java-service.yml
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-deploy@1.2.0
+    inputs:
+      job-name: helm-deploy
+      stage: deploy
+      image: $HELM_DEPLOY_IMAGE
+      image-ref-variable: JIB_IMAGE_REF
+      chart-variable: CHART_REF
+      chart-version-variable: CHART_VERSION
+      kubeconfig-variable: '$[[ inputs.kubeconfig-variable ]]'
+      create-namespace: false
+      plain-http: $[[ inputs.registry-plain-http ]]
+      values-file: '$[[ inputs.environment-directory ]]/cluster/$[[ inputs.cluster ]].yaml'
+      override-values-file: '$[[ inputs.environment-directory ]]/user/$[[ inputs.user-config ]].yaml'
+      release: '$[[ inputs.application ]]'
+      namespace: '$[[ inputs.namespace ]]'
+      environment: $DEPLOY_ENVIRONMENT
+      target-url: $DEV_TARGET_URL
+      timeout: '$[[ inputs.deployment-timeout ]]'
+      output-prefix: DEPLOY
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-deploy@1.2.0
+    inputs:
+      job-name: helm-deploy-ui
+      stage: deploy
+      image: $HELM_DEPLOY_IMAGE
+      image-ref-variable: UI_IMAGE_IMAGE_REF
+      chart-variable: UI_CHART_REF
+      chart-version-variable: UI_CHART_VERSION
+      kubeconfig-variable: '$[[ inputs.kubeconfig-variable ]]'
+      create-namespace: false
+      plain-http: $[[ inputs.registry-plain-http ]]
+      values-file: '$[[ inputs.environment-directory ]]/cluster/$[[ inputs.cluster ]].yaml'
+      override-values-file: '$[[ inputs.environment-directory ]]/user/$[[ inputs.user-config ]].yaml'
+      release: '$[[ inputs.ui-application ]]'
+      namespace: '$[[ inputs.namespace ]]'
+      environment: $DEPLOY_ENVIRONMENT
+      target-url: $UI_TARGET_URL
+      timeout: '$[[ inputs.deployment-timeout ]]'
+      output-prefix: UI_DEPLOY
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+    inputs:
+      job-name: cucumber-dev
+      output-prefix: DEV_CUCUMBER
+      image: $CUCUMBER_TEST_IMAGE
+      maven-executable: mvn
+      target-url-variable: DEPLOY_URL
+      tags: 'not @ui and not @ignore'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+    inputs:
+      job-name: cucumber-ui
+      image: $CUCUMBER_UI_IMAGE
+      maven-executable: mvn
+      target-url-variable: UI_DEPLOY_URL
+      profile: ui
+      tags: '@ui or @animals'
+      output-prefix: UI_CUCUMBER
+
+workflow:
+  name: 'Dev — deployment en integratietests'
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+    - when: never
+
+stages: [deploy, integration]
+
+default:
+  tags: $[[ inputs.runner-tags ]]
+
+variables:
+  APP_VERSION: '$[[ inputs.version ]]'
+  HELM_REGISTRY_PLAIN_HTTP: '$[[ inputs.registry-plain-http ]]'
+  DEPLOY_ENVIRONMENT: 'dev/$[[ inputs.cluster ]]'
+
+.ui-deployment:
+  rules:
+    - if: '"$[[ inputs.ui-directory ]]" != ""'
+
+helm-deploy:
+  needs: $[[ inputs.publish-needs ]]
+  before_script:
+    - !reference [.helm-login, before_script]
+  environment:
+    url: $DEV_PUBLIC_URL
+
+helm-deploy-ui:
+  extends: .ui-deployment
+  needs: $[[ inputs.ui-publish-needs ]]
+  before_script:
+    - !reference [.helm-login, before_script]
+  environment:
+    url: $UI_PUBLIC_URL
+
+cucumber-dev:
+  extends: .maven-cache
+  # Every deployable must be ready before either deployed integration suite starts.
+  needs:
+    - job: helm-deploy
+      artifacts: true
+    - job: helm-deploy-ui
+      optional: true
+      artifacts: false
+  environment:
+    name: $DEPLOY_ENVIRONMENT
+    action: prepare
+
+cucumber-ui:
+  extends: [.ui-deployment, .maven-cache]
+  needs:
+    - job: helm-deploy-ui
+      artifacts: true
+    - job: helm-deploy
+      artifacts: false
+  environment:
+    name: $DEPLOY_ENVIRONMENT
+    action: prepare

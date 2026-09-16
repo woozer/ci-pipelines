@@ -1,0 +1,10 @@
+# Maven runtime settings used by both build and deployed Cucumber jobs.
+variables:
+  MAVEN_ARGS: '-Drevision=$APP_VERSION'
+  MAVEN_USER_HOME: '$CI_PROJECT_DIR/.m2'
+  MAVEN_OPTS: '-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository'
+
+.maven-cache:
+  cache:
+    key: maven-java-25
+    paths: [.m2/]

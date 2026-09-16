@@ -1,0 +1,255 @@
+# Public entry point: ordinary CI, deployment selection and release reservation.
+spec:
+  component: [sha]
+  inputs:
+    pipeline-project:
+      description: 'Project hosting this pipeline; change only when mirroring the library'
+      default: root/ci-pipelines
+    components-project:
+      description: 'Project hosting the pinned task components'
+      default: root/ci-components
+    release-line:
+      description: 'Reviewed major.minor release line; change through a project merge request'
+      default: '0.1'
+      regex: '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+    runner-tags:
+      description: 'Runner tags selected by the platform team'
+      type: array
+      default: [local-docker]
+    buildkit-runner-tags:
+      description: 'Runner tags for rootless BuildKit'
+      type: array
+      default: [local-buildkit]
+    registry-plain-http:
+      description: 'Local demo only; set false for an HTTPS organization registry'
+      type: boolean
+      default: true
+    kubeconfig-variable:
+      description: 'GitLab file variable; empty uses the agent-provided KUBECONFIG and KUBE_CONTEXT'
+      default: LOCAL_KUBECONFIG
+      regex: '^([A-Z][A-Z0-9_]*)?$'
+    clusters:
+      description: 'Cluster choices configured by the platform team'
+      type: array
+      default: [local]
+    user-configs:
+      description: 'Available environment/user profiles'
+      type: array
+      default: [default, two-replicas]
+    maven-project:
+      description: 'Deployable Maven module containing Jib'
+    application:
+      default: '$CI_PROJECT_NAME'
+    chart:
+      default: 'helm/$CI_PROJECT_NAME'
+    ui-directory:
+      description: 'Optional Angular/npm deployable; empty keeps a backend-only pipeline'
+      default: ''
+    ui-application:
+      default: '$CI_PROJECT_NAME-ui'
+    ui-chart:
+      default: 'helm/$CI_PROJECT_NAME-ui'
+    namespace:
+      default: '$CI_PROJECT_NAME'
+    deployment-timeout:
+      description: 'Helm readiness timeout per deployable; allow extra job time for rollback'
+      default: 5m
+    environment-directory:
+      default: environment
+    cluster:
+      default: local
+      regex: '^[a-z0-9][a-z0-9-]*$'
+    user-config:
+      default: default
+      regex: '^[a-z0-9][a-z0-9-]*$'
+    pipeline-mode:
+      description: 'Choose before pipeline creation; runtime choices affect deployment only'
+      default: deploy
+      options: [validate, publish, deploy]
+---
+include:
+  - local: /internal/java-build.yml
+    inputs:
+      components-project: '$[[ inputs.components-project ]]'
+      maven-project: '$[[ inputs.maven-project ]]'
+      application: '$[[ inputs.application ]]'
+      chart: '$[[ inputs.chart ]]'
+      ui-directory: '$[[ inputs.ui-directory ]]'
+      ui-application: '$[[ inputs.ui-application ]]'
+      ui-chart: '$[[ inputs.ui-chart ]]'
+      buildkit-runner-tags: $[[ inputs.buildkit-runner-tags ]]
+      registry-plain-http: $[[ inputs.registry-plain-http ]]
+      pipeline-mode: '$[[ inputs.pipeline-mode ]]'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+    inputs:
+      job-name: test-custom
+      output-prefix: CUSTOM_TEST
+      stage: test
+      image: $CUCUMBER_TEST_IMAGE
+      maven-executable: mvn
+      target-url-variable: ''
+      tags: 'not @ui and not @ignore'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/deployment-select@1.2.0
+    inputs:
+      job-name: configure-deploy
+      image: $MAVEN_BUILD_IMAGE
+      clusters: $[[ inputs.clusters ]]
+      user-configs: $[[ inputs.user-configs ]]
+      default-cluster: '$[[ inputs.cluster ]]'
+      default-user-config: '$[[ inputs.user-config ]]'
+      pipeline-config: |
+        include:
+          - project: '$[[ inputs.pipeline-project ]]'
+            ref: '$[[ component.sha ]]'
+            file: /internal/java-deploy.yml
+            inputs:
+              components-project: '$[[ inputs.components-project ]]'
+              runner-tags: $[[ inputs.runner-tags ]]
+              registry-plain-http: $[[ inputs.registry-plain-http ]]
+              kubeconfig-variable: '$[[ inputs.kubeconfig-variable ]]'
+              application: '$[[ inputs.application | expand_vars ]]'
+              ui-directory: '$[[ inputs.ui-directory ]]'
+              ui-application: '$[[ inputs.ui-application | expand_vars ]]'
+              namespace: '$[[ inputs.namespace | expand_vars ]]'
+              deployment-timeout: '$[[ inputs.deployment-timeout ]]'
+              environment-directory: '$[[ inputs.environment-directory ]]'
+              cluster: '@CLUSTER@'
+              user-config: '@USER_CONFIG@'
+              version: '$APP_VERSION'
+              publish-needs:
+                - pipeline: '$CI_PIPELINE_ID'
+                  job: publish-image
+                - pipeline: '$CI_PIPELINE_ID'
+                  job: publish-chart
+              ui-publish-needs:
+                - pipeline: '$CI_PIPELINE_ID'
+                  job: publish-ui-image
+                - pipeline: '$CI_PIPELINE_ID'
+                  job: publish-ui-chart
+                - job: helm-deploy
+                  artifacts: false
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-reserve@1.2.0
+    inputs:
+      job-name: start-release
+      image: $MAVEN_BUILD_IMAGE
+      release-line: '$[[ inputs.release-line ]]'
+      artifact-expire-in: never
+      pipeline-config: |
+        include:
+          - project: '$[[ inputs.pipeline-project ]]'
+            ref: '$[[ component.sha ]]'
+            file: /internal/java-release.yml
+            inputs:
+              components-project: '$[[ inputs.components-project ]]'
+              runner-tags: $[[ inputs.runner-tags ]]
+              buildkit-runner-tags: $[[ inputs.buildkit-runner-tags ]]
+              registry-plain-http: $[[ inputs.registry-plain-http ]]
+              kubeconfig-variable: '$[[ inputs.kubeconfig-variable ]]'
+              maven-project: '$[[ inputs.maven-project ]]'
+              application: '$[[ inputs.application | expand_vars ]]'
+              chart: '$[[ inputs.chart | expand_vars ]]'
+              ui-directory: '$[[ inputs.ui-directory ]]'
+              ui-application: '$[[ inputs.ui-application | expand_vars ]]'
+              ui-chart: '$[[ inputs.ui-chart | expand_vars ]]'
+              namespace: '$[[ inputs.namespace | expand_vars ]]'
+              deployment-timeout: '$[[ inputs.deployment-timeout ]]'
+              environment-directory: '$[[ inputs.environment-directory ]]'
+              cluster: '$SELECTION_CLUSTER'
+              user-config: '$SELECTION_USER_CONFIG'
+              version: '@RELEASE_VERSION@'
+              commit: '@RELEASE_COMMIT@'
+
+workflow:
+  name: '$JAVA_SERVICE_PIPELINE_NAME'
+  rules:
+    - if: '$CI_COMMIT_TAG'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      variables:
+        JAVA_SERVICE_PIPELINE_NAME: 'CI — $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "api"'
+    - when: never
+
+stages: [build, test, analyze, publish, image, configure, deploy, release, release-delivery]
+
+default:
+  tags: $[[ inputs.runner-tags ]]
+
+variables:
+  JAVA_SERVICE_PIPELINE_NAME: 'CI — $CI_COMMIT_BRANCH'
+  APP_VERSION: '0.0.0-dev.$CI_PIPELINE_IID.g$CI_COMMIT_SHORT_SHA'
+  PUBLISH_REPOSITORY: $OCI_REPOSITORY
+  ARTIFACT_ENVIRONMENT: dev
+
+.deploy-enabled:
+  rules:
+    - if: &deploy-condition '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true" && "$[[ inputs.pipeline-mode ]]" == "deploy"'
+
+.delivery-trigger:
+  extends: .deploy-enabled
+  inherit:
+    variables: false
+  # Keep the same lock through deployment and both integration suites.
+  resource_group: 'dev-$[[ inputs.application ]]'
+
+test-custom:
+  extends: .maven-cache
+  rules:
+    - when: manual
+      allow_failure: true
+  needs: [build]
+  inputs:
+    tags:
+      description: 'Cucumber scenarios: complete suite or smoke checks'
+      default: 'not @ui and not @ignore'
+      options: ['not @ui and not @ignore', '@smoke and not @ui']
+  before_script:
+    - !reference [.ci-module, before_script]
+    - export CUCUMBER_TAGS='${{ job.inputs.tags }}'
+
+configure-deploy:
+  dependencies: []
+  rules:
+    - if: *deploy-condition
+      when: delayed
+      start_in: 10 seconds
+
+deploy-dev:
+  stage: deploy
+  extends: .delivery-trigger
+  needs: [configure-deploy]
+  trigger:
+    include:
+      - artifact: .ci-output/configure-deploy/pipeline.yml
+        job: configure-deploy
+    strategy: mirror
+
+start-release:
+  variables:
+    GIT_DEPTH: '0'
+  environment:
+    name: release/reserve
+    action: prepare
+  rules:
+    - if: *deploy-condition
+      when: manual
+      allow_failure: true
+  needs:
+    - job: deploy-dev
+      artifacts: false
+    - job: configure-deploy
+      artifacts: true
+  resource_group: release-reservation
+  interruptible: false
+
+release-delivery:
+  stage: release-delivery
+  extends: .delivery-trigger
+  needs: [start-release]
+  trigger:
+    include:
+      - artifact: .ci-output/start-release/pipeline.yml
+        job: start-release
+    strategy: mirror

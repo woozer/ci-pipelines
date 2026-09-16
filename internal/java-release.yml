@@ -1,0 +1,172 @@
+# Internal pipeline for a version already reserved by start-release.
+spec:
+  inputs:
+    components-project:
+      default: root/ci-components
+    runner-tags:
+      description: 'Runner tags selected by the platform team'
+      type: array
+      default: [local-docker]
+    buildkit-runner-tags:
+      description: 'Runner tags for rootless BuildKit'
+      type: array
+      default: [local-buildkit]
+    registry-plain-http:
+      description: 'Local demo only; set false for an HTTPS organization registry'
+      type: boolean
+      default: true
+    kubeconfig-variable:
+      description: 'GitLab file variable; empty uses the agent-provided KUBECONFIG and KUBE_CONTEXT'
+      default: LOCAL_KUBECONFIG
+      regex: '^([A-Z][A-Z0-9_]*)?$'
+    maven-project:
+      description: 'Deployable Maven module containing Jib'
+    application:
+      default: '$CI_PROJECT_NAME'
+    chart:
+      default: 'helm/$CI_PROJECT_NAME'
+    ui-directory:
+      description: 'Optional Angular/npm deployable; empty keeps a backend-only pipeline'
+      default: ''
+    ui-application:
+      default: '$CI_PROJECT_NAME-ui'
+    ui-chart:
+      default: 'helm/$CI_PROJECT_NAME-ui'
+    namespace:
+      default: '$CI_PROJECT_NAME'
+    deployment-timeout:
+      description: 'Helm readiness timeout per deployable; allow extra job time for rollback'
+      default: 5m
+    environment-directory:
+      default: environment
+    cluster:
+      default: local
+      regex: '^[a-z0-9][a-z0-9-]*$'
+    user-config:
+      default: default
+      regex: '^[a-z0-9][a-z0-9-]*$'
+    version:
+      description: 'Internal: retain the producing pipeline version in child pipelines'
+    commit:
+      description: 'Exact application commit selected when reserving the release'
+---
+include:
+  - local: /internal/java-build.yml
+    inputs:
+      components-project: '$[[ inputs.components-project ]]'
+      maven-project: '$[[ inputs.maven-project ]]'
+      application: '$[[ inputs.application ]]'
+      chart: '$[[ inputs.chart ]]'
+      ui-directory: '$[[ inputs.ui-directory ]]'
+      ui-application: '$[[ inputs.ui-application ]]'
+      ui-chart: '$[[ inputs.ui-chart ]]'
+      buildkit-runner-tags: $[[ inputs.buildkit-runner-tags ]]
+      registry-plain-http: $[[ inputs.registry-plain-http ]]
+  - local: /internal/java-deploy.yml
+    inputs:
+      components-project: '$[[ inputs.components-project ]]'
+      runner-tags: $[[ inputs.runner-tags ]]
+      registry-plain-http: $[[ inputs.registry-plain-http ]]
+      kubeconfig-variable: '$[[ inputs.kubeconfig-variable ]]'
+      application: '$[[ inputs.application ]]'
+      ui-directory: '$[[ inputs.ui-directory ]]'
+      ui-application: '$[[ inputs.ui-application ]]'
+      namespace: '$[[ inputs.namespace ]]'
+      deployment-timeout: '$[[ inputs.deployment-timeout ]]'
+      environment-directory: '$[[ inputs.environment-directory ]]'
+      cluster: '$[[ inputs.cluster ]]'
+      user-config: '$[[ inputs.user-config ]]'
+      version: '$[[ inputs.version ]]'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-check@1.2.0
+    inputs:
+      job-name: check-release
+      image: $MAVEN_BUILD_IMAGE
+      version: '$[[ inputs.version ]]'
+      commit: '$[[ inputs.commit ]]'
+      image-path: '$RELEASE_OCI_REPOSITORY/$[[ inputs.application ]]'
+      chart-path: '$RELEASE_OCI_REPOSITORY/charts/$[[ inputs.application ]]'
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-check@1.2.0
+    inputs:
+      job-name: check-ui-release
+      image: $MAVEN_BUILD_IMAGE
+      version: '$[[ inputs.version ]]'
+      commit: '$[[ inputs.commit ]]'
+      image-path: '$RELEASE_OCI_REPOSITORY/$[[ inputs.ui-application ]]'
+      chart-path: '$RELEASE_OCI_REPOSITORY/charts/$[[ inputs.ui-application ]]'
+      output-prefix: UI_RELEASE_CHECK
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/gitlab-release@1.2.0
+    inputs:
+      job-name: publish-release
+      image: $MAVEN_BUILD_IMAGE
+      api-url: $GITLAB_INTERNAL_URL/api/v4
+      artifact-base-url: $ARTIFACTORY_PUBLIC_URL/artifactory
+      version: '$[[ inputs.version ]]'
+      artifact-expire-in: never
+      additional-artifact-prefixes: $RELEASE_EXTRA_ARTIFACTS
+      description: 'Validated in dev. Production delivery through Argo CD must use this image digest without rebuilding.'
+
+workflow:
+  name: 'Release — $[[ inputs.version ]]'
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "parent_pipeline" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+    - when: never
+
+stages: [check, build, test, analyze, publish, image, deploy, integration, finish]
+
+variables:
+  APP_VERSION: '$[[ inputs.version ]]'
+  RELEASE_COMMIT: '$[[ inputs.commit ]]'
+  PUBLISH_REPOSITORY: $RELEASE_OCI_REPOSITORY
+  ARTIFACT_ENVIRONMENT: release/publish
+  DEPLOY_ENVIRONMENT: 'release/dev/$[[ inputs.cluster ]]'
+
+# A release keeps all mandatory validation jobs non-interruptible.
+build:
+  interruptible: false
+test:
+  interruptible: false
+build-ui:
+  interruptible: false
+test-ui:
+  interruptible: false
+
+check-release:
+  extends: .publish
+  dependencies: []
+  variables:
+    GIT_DEPTH: '0'
+
+check-ui-release:
+  extends: .publish
+  dependencies: []
+  rules:
+    - if: '"$[[ inputs.ui-directory ]]" != ""'
+  variables:
+    GIT_DEPTH: '0'
+
+publish-release:
+  extends: .publish
+  stage: finish
+  rules:
+    - if: '"$[[ inputs.ui-directory ]]" != ""'
+      variables:
+        RELEASE_EXTRA_ARTIFACTS: 'UI_IMAGE:UI_CHART'
+    - when: on_success
+      variables:
+        RELEASE_EXTRA_ARTIFACTS: ''
+  needs:
+    - job: publish-image
+      artifacts: true
+    - job: publish-chart
+      artifacts: true
+    - job: cucumber-dev
+      artifacts: false
+    - job: publish-ui-image
+      optional: true
+      artifacts: true
+    - job: publish-ui-chart
+      optional: true
+      artifacts: true
+    - job: cucumber-ui
+      optional: true
+      artifacts: false
