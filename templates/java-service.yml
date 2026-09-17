@@ -80,7 +80,7 @@ include:
       buildkit-runner-tags: $[[ inputs.buildkit-runner-tags ]]
       registry-plain-http: $[[ inputs.registry-plain-http ]]
       pipeline-mode: '$[[ inputs.pipeline-mode ]]'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@a95322645886b3c9adef75060059bdfe99ac1d18
     inputs:
       job-name: test-custom
       output-prefix: CUSTOM_TEST
@@ -89,7 +89,7 @@ include:
       maven-executable: mvn
       target-url-variable: ''
       tags: 'not @ui and not @ignore'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/deployment-select@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/deployment-select@a95322645886b3c9adef75060059bdfe99ac1d18
     inputs:
       job-name: configure-deploy
       image: $MAVEN_BUILD_IMAGE
@@ -128,7 +128,7 @@ include:
                   job: publish-ui-chart
                 - job: helm-deploy
                   artifacts: false
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-reserve@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-reserve@a95322645886b3c9adef75060059bdfe99ac1d18
     inputs:
       job-name: start-release
       image: $MAVEN_BUILD_IMAGE

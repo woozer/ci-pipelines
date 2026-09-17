@@ -37,7 +37,7 @@ class OrganizationConfigurationTests(unittest.TestCase):
                         '$APP_VERSION': '0.0.0-dev.314.gabcdef12', '$CI_PIPELINE_ID': '314'}
         for entry in parent['include']:
             values = entry.get('inputs', {})
-            if entry.get('component', '').endswith('/release-reserve@1.2.0'):
+            if entry.get('component', '').endswith('/release-reserve@a95322645886b3c9adef75060059bdfe99ac1d18'):
                 self.assertEqual('2.3', values['release-line'])
             if 'pipeline-config' not in values:
                 continue
@@ -59,12 +59,12 @@ class OrganizationConfigurationTests(unittest.TestCase):
                 for option in ('plain-http', 'allow-insecure-registry'):
                     if option in values:
                         self.assertIs(values[option], False)
-                if entry.get('component', '').endswith('/helm-deploy@1.2.0'):
+                if entry.get('component', '').endswith('/helm-deploy@a95322645886b3c9adef75060059bdfe99ac1d18'):
                     self.assertEqual('', values['kubeconfig-variable'])
                     self.assertEqual('orders-test', values['namespace'])
                     self.assertEqual('environment/cluster/openshift-test.yaml', values['values-file'])
                     self.assertEqual('environment/user/performance.yaml', values['override-values-file'])
-                if entry.get('component', '').endswith('/maven-publish@1.2.0'):
+                if entry.get('component', '').endswith('/maven-publish@a95322645886b3c9adef75060059bdfe99ac1d18'):
                     self.assertEqual('$MAVEN_PUBLISH_URL', values['repository-url'])
                     self.assertEqual('services/api', values['project-selector'])
         for body in (parent, children['java-release']):
