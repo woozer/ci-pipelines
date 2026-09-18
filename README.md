@@ -2,7 +2,7 @@
 
 Gebruik `java-service` voor een Java-applicatie met één deploybare Maven-module en eventueel een Angular-UI. De pipeline combineert build, unit- en integratietests, scans, publicatie, Helm-deployment en een handmatige releaseknop. Een Maven-reactor mag daarnaast libraries en testmodules bevatten.
 
-Dit project heeft een eigen versie. De losse bouwblokken blijven zelfstandig beschikbaar in [ci-components](https://github.com/woozer/ci-components). Versie `1.0.0` van deze pipeline gebruikt die bouwblokken op **`1.2.0`**. Afnemers kiezen één pipelineversie; de beheerder test en onderhoudt de combinatie.
+Dit project heeft een eigen versie. De losse bouwblokken blijven zelfstandig beschikbaar in [ci-components](https://github.com/woozer/ci-components). Versie `1.1.0` van deze pipeline gebruikt die bouwblokken op **`2.0.0`**. Afnemers kiezen één pipelineversie; de beheerder test en onderhoudt de combinatie.
 
 ## Gebruiken
 
@@ -10,7 +10,7 @@ Na installatie staat `java-service` onder **ci-pipelines** in de [lokale CI/CD C
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/root/ci-pipelines/java-service@1.0.0
+  - component: $CI_SERVER_FQDN/root/ci-pipelines/java-service@1.1.0
     inputs:
       maven-project: hello-app
 ```
@@ -19,7 +19,7 @@ include:
 
 Voor het formulier op **New pipeline** neem je ook [config/pipeline-inputs.yml](config/pipeline-inputs.yml) op met dezelfde **pipelineversie**. Zie het [volledige applicatievoorbeeld](examples/application.gitlab-ci.yml). De standaardpipeline kiest zelf de moduleversies; er is geen verplichte `library-ref` meer.
 
-De platformbeheerder regelt runners, images, registries, SonarQube en toegangsgegevens. De lokale defaults komen uit `ci-components@1.2.0/config/organization.yml`; groeps- en projectvariabelen kunnen deze overschrijven. Voor een nieuwe Docker-demo volg je de [installatiehandleiding](https://github.com/woozer/ci-components/blob/main/installation.md). Voor organisatiediensten en OpenShift: [platforminrichting](https://github.com/woozer/ci-components/blob/main/docs/real-environment.md).
+De platformbeheerder regelt runners, images, registries, SonarQube en toegangsgegevens. De lokale defaults komen uit `ci-components@2.0.0/config/organization.yml`; groeps- en projectvariabelen kunnen deze overschrijven. Voor een nieuwe Docker-demo volg je de [installatiehandleiding](https://github.com/woozer/ci-components/blob/main/installation.md). Voor organisatiediensten en OpenShift: [platforminrichting](https://github.com/woozer/ci-components/blob/main/docs/real-environment.md).
 
 ## Dagelijks gebruik
 
@@ -48,3 +48,5 @@ Voor handmatige validatie kies je in **ci-samples → New pipeline** `sample: ja
 De projectpipeline vereist `CI_VALIDATION_IMAGE`, `CI_RELEASE_IMAGE` en `CI_SAMPLES_PROJECT`. De demo-installer richt die in, inclusief runner en job-tokenrechten. Na beide geslaagde controles maakt **publish-catalog** op een beschermde SemVer-tag de catalogusrelease via GitLabs standaardveld `release:`. De publicatie controleert ook of de commit op `main` voorkomt.
 
 De openbare broncode staat in [woozer/ci-pipelines](https://github.com/woozer/ci-pipelines). De lokale catalogus is beschikbaar na [installatie](https://github.com/woozer/ci-components/blob/main/installation.md).
+
+De scannerjobs leveren naast volledige artifacts ook samenvattingen: Dependency-Check in de open MR, Sonar na analyse van main bij de commit en de bijbehorende gemergede MR. JUnit blijft beschikbaar onder **Tests** en in het MR-testoverzicht. Zie [rapportage en editiegrenzen](https://github.com/woozer/ci-components/blob/main/docs/scanners.md).

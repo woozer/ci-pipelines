@@ -26,11 +26,11 @@ class PipelineTests(unittest.TestCase):
                 self.assertFalse(needs['helm-deploy'].get('optional', False))
             self.assertTrue(body['cucumber-dev']['needs'][1]['optional'])
             for include in body['include']:
-                if include.get('component', '').endswith('/helm-deploy@a95322645886b3c9adef75060059bdfe99ac1d18'):
+                if include.get('component', '').endswith('/helm-deploy@2.0.0'):
                     self.assertEqual('8m', include['inputs']['timeout'])
         parent = pipeline_config(overrides={'deployment-timeout': '8m'})
         for include in parent['include']:
-            if include.get('component', '').endswith(('/deployment-select@a95322645886b3c9adef75060059bdfe99ac1d18', '/release-reserve@a95322645886b3c9adef75060059bdfe99ac1d18')):
+            if include.get('component', '').endswith(('/deployment-select@2.0.0', '/release-reserve@2.0.0')):
                 self.assertIn("deployment-timeout: '8m'", include['inputs']['pipeline-config'])
 
     def test_standard_pipeline_fetches_only_needed_artifacts(self):
@@ -52,7 +52,7 @@ class PipelineTests(unittest.TestCase):
                     versions.add(entry['component'].rsplit('@', 1)[1])
                 elif 'project' in entry:
                     versions.add(entry['ref'])
-        self.assertEqual({'a95322645886b3c9adef75060059bdfe99ac1d18'}, versions)
+        self.assertEqual({'2.0.0'}, versions)
 
     def test_compositions_reserve_distinct_output_prefixes(self):
         for path in ('templates/java-service.yml', 'internal/java-deploy.yml', 'internal/java-release.yml'):
