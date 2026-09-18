@@ -31,16 +31,16 @@ spec:
 ---
 include:
   - project: '$[[ inputs.components-project ]]'
-    ref: '1.2.0'
+    ref: '2.0.0'
     file: [/config/organization.yml, /shared/helm.yml]
   - local: /shared/java-service.yml
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/maven-build@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/maven-build@2.0.0
     inputs:
       job-name: build
       stage: build
       image: $MAVEN_BUILD_IMAGE
       maven-executable: mvn
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@2.0.0
     inputs:
       job-name: test
       stage: test
@@ -48,27 +48,27 @@ include:
       maven-executable: mvn
       target-url-variable: ''
       tags: 'not @ui and not @ignore'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/npm-build@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/npm-build@2.0.0
     inputs:
       job-name: build-ui
       stage: build
       image: $NPM_BUILD_IMAGE
       working-directory: '$[[ inputs.ui-directory ]]'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/npm-test@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/npm-test@2.0.0
     inputs:
       job-name: test-ui
       image: $NPM_TEST_IMAGE
       working-directory: '$[[ inputs.ui-directory ]]'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/sonar@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/sonar@2.0.0
     inputs:
       image: $SONAR_IMAGE
       maven-executable: mvn
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/dependency-check@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/dependency-check@2.0.0
     inputs:
       image: $DEPENDENCY_CHECK_IMAGE
       maven-executable: mvn
       nvd-datafeed-url: $NVD_DATAFEED_URL
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/maven-publish@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/maven-publish@2.0.0
     inputs:
       job-name: publish-maven
       stage: publish
@@ -78,7 +78,7 @@ include:
       settings-file: $MAVEN_PUBLISH_SETTINGS
       repository-id: $MAVEN_PUBLISH_SERVER_ID
       repository-url: $MAVEN_PUBLISH_URL
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/jib-build@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/jib-build@2.0.0
     inputs:
       job-name: publish-image
       stage: image
@@ -92,7 +92,7 @@ include:
       digest-file: '$[[ inputs.maven-project ]]/target/jib-image.digest'
       allow-insecure-registry: $[[ inputs.registry-plain-http ]]
       output-prefix: JIB
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-publish@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-publish@2.0.0
     inputs:
       job-name: publish-chart
       stage: image
@@ -104,7 +104,7 @@ include:
       oci-repository: oci://$OCI_REGISTRY/$PUBLISH_REPOSITORY/charts
       plain-http: $[[ inputs.registry-plain-http ]]
       output-prefix: CHART
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/image-build@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/image-build@2.0.0
     inputs:
       job-name: publish-ui-image
       stage: image
@@ -118,7 +118,7 @@ include:
       base-image: $NGINX_BASE_IMAGE
       plain-http: $[[ inputs.registry-plain-http ]]
       output-prefix: UI_IMAGE
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-publish@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-publish@2.0.0
     inputs:
       job-name: publish-ui-chart
       stage: image
