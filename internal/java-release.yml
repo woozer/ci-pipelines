@@ -77,7 +77,7 @@ include:
       cluster: '$[[ inputs.cluster ]]'
       user-config: '$[[ inputs.user-config ]]'
       version: '$[[ inputs.version ]]'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-check@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-check@2.0.0
     inputs:
       job-name: check-release
       image: $MAVEN_BUILD_IMAGE
@@ -85,7 +85,7 @@ include:
       commit: '$[[ inputs.commit ]]'
       image-path: '$RELEASE_OCI_REPOSITORY/$[[ inputs.application ]]'
       chart-path: '$RELEASE_OCI_REPOSITORY/charts/$[[ inputs.application ]]'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-check@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/release-check@2.0.0
     inputs:
       job-name: check-ui-release
       image: $MAVEN_BUILD_IMAGE
@@ -94,7 +94,7 @@ include:
       image-path: '$RELEASE_OCI_REPOSITORY/$[[ inputs.ui-application ]]'
       chart-path: '$RELEASE_OCI_REPOSITORY/charts/$[[ inputs.ui-application ]]'
       output-prefix: UI_RELEASE_CHECK
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/gitlab-release@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/gitlab-release@2.0.0
     inputs:
       job-name: publish-release
       image: $MAVEN_BUILD_IMAGE

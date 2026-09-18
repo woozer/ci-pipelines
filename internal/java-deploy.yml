@@ -58,10 +58,10 @@ spec:
 ---
 include:
   - project: '$[[ inputs.components-project ]]'
-    ref: '1.2.0'
+    ref: '2.0.0'
     file: [/config/organization.yml, /shared/helm.yml]
   - local: /shared/java-service.yml
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-deploy@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-deploy@2.0.0
     inputs:
       job-name: helm-deploy
       stage: deploy
@@ -80,7 +80,7 @@ include:
       target-url: $DEV_TARGET_URL
       timeout: '$[[ inputs.deployment-timeout ]]'
       output-prefix: DEPLOY
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-deploy@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/helm-deploy@2.0.0
     inputs:
       job-name: helm-deploy-ui
       stage: deploy
@@ -99,7 +99,7 @@ include:
       target-url: $UI_TARGET_URL
       timeout: '$[[ inputs.deployment-timeout ]]'
       output-prefix: UI_DEPLOY
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@2.0.0
     inputs:
       job-name: cucumber-dev
       output-prefix: DEV_CUCUMBER
@@ -107,7 +107,7 @@ include:
       maven-executable: mvn
       target-url-variable: DEPLOY_URL
       tags: 'not @ui and not @ignore'
-  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@1.2.0
+  - component: $CI_SERVER_FQDN/$[[ inputs.components-project ]]/cucumber-test@2.0.0
     inputs:
       job-name: cucumber-ui
       image: $CUCUMBER_UI_IMAGE
